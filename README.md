@@ -5,10 +5,10 @@ It is like netcat implemented in python.
 ## Usage
 
 ```
-$ python netdog.py -h
-usage: netdog.py [-l] [-u] [-e cmd] [-C] [-b] [-v] [-h] [-V] [hostname] port
+$ netdog -h
+usage: netdog [-l] [-u] [-e cmd] [-C] [-b] [-v] [-h] [-V] [hostname] port
 
-netdog is a python implementation of like netcat.
+netdog is a networking tool like netcat.
 
 positional arguments:
   hostname            Address of bind / connect to.
@@ -35,7 +35,7 @@ misc arguments:
 
   The following is an example of a simple HTTP GET method.
 
-    > netdog.py -v -e 'python -u httpget.py' 127.0.0.1 80
+    > netdog -v -e 'python -u httpget.py' 127.0.0.1 80
 
     ---httpget.py---
     print("GET / HTTP/1.1\r\n", end="")

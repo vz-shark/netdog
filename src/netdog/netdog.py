@@ -13,14 +13,32 @@ from typing import Callable, Any
 from termcolor import cprint
 
 
-PGNAME = os.path.basename(sys.argv[0])
+PGNAME = "netdog"
+
 VERSION = "0.0.1"
 
 def get_version():
-    return f"{PGNAME} Ver{VERSION}"
+    return f"{PGNAME} {VERSION}"
+
+EPILOG = r"""
+[Examples]:
+
+* Delegate application layer behavior to other programs via stdin/stdout of subprocess.
+  In other words, make stdin/stdout via PIPE correspond to recv/send.
+  
+  The following is an example of a simple HTTP GET method.  
+    
+    > %(prog)s -v -e 'python -u httpget.py' 127.0.0.1 80        
+    
+    ---httpget.py---
+    print("GET / HTTP/1.1\r\n", end="")
+    while(True): print(f"response = {input()}", file=sys.stderr)
+    ----------------
+"""% ({"prog": PGNAME})
 
 
-class NetIf:
+
+class NetDogIf:
     def __init__(self, is_udp:bool = False,  is_bin:bool = False, kaigyo:str = "\n", encoding="utf-8", verbose:int=0):
         self._udp: bool = is_udp
         self._is_bin: bool = is_bin
@@ -234,66 +252,38 @@ class NetIf:
 
 
 
-def run_app(host, port, is_server=True, is_udp=False, bufsize=1024, verbose=0, exec=""):
-    # create netif
-    netif = NetIf(is_udp=is_udp, verbose=verbose)
+def app(host, port, is_listen=True, is_udp=False, bufsize=1024, verbose=0, exec=""):
+    # create netdogif
+    dogif = NetDogIf(is_udp=is_udp, verbose=verbose)
 
     # start server/client
-    if(is_server):
-        netif.server(host, port)
+    if(is_listen):
+        dogif.server(host, port)
     else:
-        netif.client(host, port)
+        dogif.client(host, port)
     
     # exec
     if(exec):
-        netif.exec(exec)
+        dogif.exec(exec)
     else:
-        netif.recv(cb=lambda x: print(x, end="", flush=True))
+        dogif.recv(cb=lambda x: print(x, end="", flush=True))
     
     # wait keyboad input
     while True:
         inp = input()
-        netif.send(inp)
+        dogif.send(inp)
 
 
 
 
-EPILOG = r"""
-
-[Examples]:
-
-* Delegate application layer behavior to other programs via stdin/stdout of subprocess.
-  In other words, make stdin/stdout via PIPE correspond to recv/send.
-  
-  The following is an example of a simple HTTP GET method.  
-    
-    > %(prog)s -v -e 'python -u httpget.py' 127.0.0.1 80        
-    
-    ---httpget.py---
-    print("GET / HTTP/1.1\r\n", end="")
-    while(True): print(f"response = {input()}", file=sys.stderr)
-    ----------------
-
-
-
-"""% ({"prog": PGNAME})
-
-#not implemented
-#
-# EPILOG += """
-#     Local forward: Make localhost port available to another interface
-#        %(prog)s -L 127.0.0.1:3306 192.168.0.1 3306
-#   
-#     Remote forward: Forward local port to remote server
-#         %(prog)s -R 127.0.0.1:3306 example.com 4444
-# """% ({"prog": PGNAME})
 
 def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
-        description="netdog is a python implementation of like netcat.",
-        #usage=USAGE
+        prog=PGNAME,
+        description="netdog is a networking tool like netcat.",
+        #usage=USAGE,
         epilog=EPILOG
     )
 
@@ -337,18 +327,12 @@ def get_args():
     return args
 
 
-def main():
-    args = get_args()
 
-    if args.listen:
-        run_app(args.hostname, args.port, is_server=True, is_udp=args.udp, verbose=args.verbose, exec=args.exec)
-    else:
-        run_app(args.hostname, args.port, is_server=False, is_udp=args.udp, verbose=args.verbose, exec=args.exec)
+
+def cli():
+    args = get_args()
+    app(args.hostname, args.port, is_listen=args.listen, is_udp=args.udp, verbose=args.verbose, exec=args.exec)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print()
-        sys.exit(1)
+    cli()

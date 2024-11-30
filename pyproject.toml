@@ -1,0 +1,31 @@
+[project]
+name = "netdog"
+version = "0.1.1"
+description = "It is like netcat implemented in python."
+authors = [
+    {name = "vz-shark", email = "vz-shark@miraikanai.net"},
+]
+dependencies = ["termcolor>=2.5.0"]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/vz-shark/netdog"
+Issues = "https://github.com/vz-shark/netdog/issues"
+
+[project.scripts]
+netdog = "netdog.netdog:cli"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
