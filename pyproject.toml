@@ -1,6 +1,7 @@
 [project]
 name = "netdog"
-version = "0.1.1"
+dynamic = ["version"]
+
 description = "It is like netcat implemented in python."
 authors = [
     {name = "vz-shark", email = "vz-shark@miraikanai.net"},
@@ -29,3 +30,4 @@ build-backend = "pdm.backend"
 
 [tool.pdm]
 distribution = true
+version = { source = "file", path = "src/netdog/__init__.py" }

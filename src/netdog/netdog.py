@@ -12,10 +12,11 @@ from typing import Callable, Any
 
 from termcolor import cprint
 
+from __init__ import __version__
 
 PGNAME = "netdog"
 
-VERSION = "0.0.1"
+VERSION = __version__
 
 def get_version():
     return f"{PGNAME} {VERSION}"
