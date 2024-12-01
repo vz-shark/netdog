@@ -9,7 +9,7 @@ pip install netdog
 ```
 
 ### Windows Executable file 
-There is a pre-built `netdog.exe` using pyinstaller. [(Download here)](https://github.com/vz-shark/netdog/tree/main/build_exe/)
+There is a pre-built `netdog.exe` using pyinstaller. [(Download here)](https://github.com/vz-shark/netdog/tree/main/dist_exe)
 
 ## Usage
 
