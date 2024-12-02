@@ -1,3 +1,3 @@
 from .netdogif import NetDogIf
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
