@@ -2,6 +2,7 @@
 
 import os
 import socket
+import select
 import sys
 import threading
 import subprocess
@@ -12,15 +13,15 @@ from termcolor import cprint
 
 
 class NetDogIf:
-    def __init__(self, is_udp:bool = False,  is_bin:bool = False, kaigyo:str = "\n", encoding="utf-8", verbose:int=0):
+    def __init__(self, is_udp:bool = False,  is_bin:bool = False, lbstr:str = "\n", encoding="utf-8", verbose:int=0):
         self._udp: bool = is_udp
         self._is_bin: bool = is_bin
-        self._kaigyo:str = kaigyo
+        self._lbstr:str = lbstr
         self._encoding:str = encoding
         self._verbose: int = verbose
 
         self._socket:  socket.socket | None = None
-        self._listenr: socket.socket | None = None
+        self._listener: socket.socket | None = None
         self._peer_ip:str = ""
         self._peer_port:int = 0
         self._thread = {}
@@ -29,7 +30,10 @@ class NetDogIf:
     def _vlog(self, verbose_level:int, s:str, /, prefix="<NetDog> ", fd=sys.stderr, color="dark_grey", **kwargs):
         if(self._verbose < verbose_level):
             return
-        cprint( prefix+s, color, file=fd, **kwargs)
+        lvstr = ""
+        if(verbose_level > 0):
+            lvstr = f"[{verbose_level}]"
+        cprint( f"{lvstr}{prefix}{s}", color, file=fd, **kwargs)
 
     def _exit(self, retcode:int):
         self._vlog(2, f"exit with {retcode}.")
@@ -57,20 +61,24 @@ class NetDogIf:
     def server(self, addr, port, backlog=1):
         try:
             #socket
-            self._listenr = self._create_socket()
+            self._listener = self._create_socket()
             if(self._udp):
-                self._socket = self._listenr
+                self._socket = self._listener
             #bind
             self._vlog(2, f"bind: {addr}:{port}")
-            self._listenr.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._listenr.bind((addr, port))
+            self._listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._listener.bind((addr, port))
             #for tcp
             if(not self._udp):
                 #listen
+                self._listener.listen(backlog)
                 self._vlog(2, f"listening...")
-                self._listenr.listen(backlog)
                 #accept
-                csock, peeraddr = self._listenr.accept()
+                while(True):
+                    rd, _, _ = select.select([self._listener], [], [], 0.5)
+                    if(self._listener in rd):
+                        break
+                csock, peeraddr = self._listener.accept()
                 (self._peer_ip, self._peer_port) = peeraddr
                 self._vlog(2, f"accept...ok!, peer={self._peer_ip}:{self._peer_port}")
                 self._socket = csock
@@ -82,7 +90,7 @@ class NetDogIf:
             #socket
             self._socket = self._create_socket()
             #connect
-            self._vlog(2, f"connecting: {addr}:{port} ...", end="")
+            self._vlog(2, f"connecting... {addr}:{port}")
             self._socket.connect((addr, port))
             self._vlog(2, f"ok")
             #peer
@@ -95,50 +103,81 @@ class NetDogIf:
     def exec(self, exec:str):
         assert isinstance(exec, str)
         assert len(exec)
+        self.make_pipe(exec)
 
+        def _exec_inner_recv(recvdata):
+            if(isinstance(recvdata, str)):
+                recvdata = recvdata.encode()
+            self.write_pipe_stdin(recvdata)
+
+        self.recv(cb=_exec_inner_recv)
+
+
+        def _exec_inner_pipe_read():
+            while(True):            
+                #stderr
+                data, size = self.read_pipe_stderr()
+                if( size < 0):
+                    break
+                if(data):
+                    self._vlog(1, f"{data}", prefix="[SubPro] ")
+                #stdout
+                data, size = self.read_pipe_stdout()
+                if( size < 0):
+                    break
+                if(data):
+                    self.send(data)
+                #sleep                            
+                time.sleep(0.01)
+
+        self._thread["pipe_reader"] = threading.Thread(target=_exec_inner_pipe_read, name="pipe_reader", daemon=True)
+        self._thread["pipe_reader"].start()
+        return
+
+    def make_pipe(self, exec):        
         self._exec_pipe = subprocess.Popen(exec, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         os.set_blocking(self._exec_pipe.stdin.fileno(), False)
         os.set_blocking(self._exec_pipe.stdout.fileno(), False)
         os.set_blocking(self._exec_pipe.stderr.fileno(), False)
 
-        def _recv2pipe(recvdata):
-            recvdata = recvdata.replace("\r", "").replace("\n", "")
-            recvdata += "\n"
-            if(isinstance(recvdata, str)):
-                recvdata = recvdata.encode()
-            self._vlog(3, f"recv2pipe: {recvdata}")
-            self._exec_pipe.stdin.write(recvdata)
-            self._exec_pipe.stdin.flush()
 
-        self.recv(cb=_recv2pipe)
+    def write_pipe_stdin(self, data):
+        if(self._exec_pipe is None):
+            return
+        self._vlog(2, f"[Pipe] --> {data}")
+        self._exec_pipe.stdin.write(data)
+        self._exec_pipe.stdin.flush()
 
-        while(True):            
-            ret = self._exec_pipe.poll()
-            if(ret is not None):
-                self._vlog(2, f"subprocess returned: {ret}")
-                self._exit(ret);
+    def read_pipe_stdout(self) -> str | None:
+        if(self._exec_pipe is None):
+            return (None, -1)
+        data = self._exec_pipe.stdout.read()
+        if(data is None or len(data) == 0):
+            if(self._exec_pipe.poll()):
+                return (None, -1)
+            return(None, 0)
+        self._vlog(2, f"[Pipe] <-- {data}")
+        return(data, len(data))
 
-            ln = self._exec_pipe.stderr.read()
-            if(ln is not None and len(ln) != 0):
-                self._vlog(1, str(ln), prefix="[SubPro] ")
-
-            ln = self._exec_pipe.stdout.read()
-            if(ln is None or len(ln) == 0):
-                time.sleep(0.01)
-                continue
-            
-            self.send(ln)
-
-        return("exec return!!!")
+    def read_pipe_stderr(self) -> str | None:
+        if(self._exec_pipe is None):
+            return (None, -1)
+        data = self._exec_pipe.stderr.read()
+        if(data is None or len(data) == 0):
+            if(self._exec_pipe.poll()):
+                return (None, -1)
+            return(None, 0)
+        self._vlog(2, f"[Pipe] *** {data}")
+        return(data, len(data))
 
 
-
-    def send(self, data: bytes | str, kaigyo_add:bool=True) -> int:
+    def send(self, data: bytes | str, lb_conv:bool=True) -> int:
         if( not self._is_bin ):
             if( not isinstance(data, str)):
                 data = data.decode(encoding=self._encoding)
-            if(kaigyo_add):
-                data += self._kaigyo
+            if(lb_conv and self._lbstr is not None):
+                data = data.replace("\r", "").replace("\n", "")
+                data += self._lbstr
         
         if(isinstance(data, str)):
             data = data.encode(encoding=self._encoding)
@@ -146,7 +185,10 @@ class NetDogIf:
         sendsiz = 0
         if( self._socket):
             while sendsiz < len(data):
-                self._vlog(2, f"send: {len(data)}byte to {self._peer_ip}:{self._peer_port}") 
+                self._vlog(3, f"send: {len(data)}byte to {self._peer_ip}:{self._peer_port}") 
+                self._vlog(0, f"[Send] --> {data}", prefix="", color=None) 
+                #self._vlog(1, f"[Send] --> {data}") 
+
                 try:
                     if self._udp:
                         sendsiz += self._socket.sendto(data, (self._peer_ip, self._peer_port))
@@ -180,7 +222,9 @@ class NetDogIf:
                     self._vlog(3, f"recv break: length=0")
                     break
 
-                self._vlog(2, f"recv: {len(bdat)}byte from {self._peer_ip}:{self._peer_port}")
+                self._vlog(3, f"recv: {len(bdat)}byte from {self._peer_ip}:{self._peer_port}")
+                self._vlog(0, f"[Recv] <-- {bdat}", prefix="", color=None) 
+                #self._vlog(1, f"[Recv] <-- {bdat}") 
                 
                 if( isinstance(data, str)):
                     data += bdat.decode(encoding=self._encoding)            
@@ -194,7 +238,7 @@ class NetDogIf:
                         break
 
             if(len(data) == 0):
-                data = None        
+                data = None
             return(data)
         
 
@@ -220,6 +264,6 @@ class NetDogIf:
     def close(self):
         if(self._socket):
             self._socket.close()
-        if(self._listenr):
-            self._listenr.close()
+        if(self._listener):
+            self._listener.close()
 

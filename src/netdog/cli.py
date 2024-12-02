@@ -31,9 +31,10 @@ EPILOG = r"""
 """% ({"prog": PGNAME})
 
 
-def app(host, port, is_listen=True, is_udp=False, bufsize=1024, verbose=0, exec=""):
+def app(host, port, is_listen=True, is_udp=False, is_crlf=False,  bufsize=1024, verbose=0, exec=""):
     # create netdogif
-    dogif = NetDogIf(is_udp=is_udp, verbose=verbose)
+    lbstr="\r\n" if is_crlf else "\n"
+    dogif = NetDogIf(is_udp=is_udp, lbstr=lbstr, verbose=verbose)
 
     # start server/client
     if(is_listen):
@@ -45,7 +46,8 @@ def app(host, port, is_listen=True, is_udp=False, bufsize=1024, verbose=0, exec=
     if(exec):
         dogif.exec(exec)
     else:
-        dogif.recv(cb=lambda x: print(x, end="", flush=True))
+        #dogif.recv(cb=lambda x: print(x, end="", flush=True))
+        dogif.recv(cb=lambda x: True)
     
     # wait keyboad input
     while True:
@@ -106,7 +108,7 @@ def get_args():
 
 def main():
     args = get_args()
-    app(args.hostname, args.port, is_listen=args.listen, is_udp=args.udp, verbose=args.verbose, exec=args.exec)
+    app(args.hostname, args.port, is_listen=args.listen, is_udp=args.udp, is_crlf=args.crlf, verbose=args.verbose, exec=args.exec)
 
 if __name__ == "__main__":
     main()
