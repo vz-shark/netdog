@@ -1,5 +1,5 @@
 
 while(True):
     inp = input()
-    print(inp)
+    print("echo back: " + inp)
 

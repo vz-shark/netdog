@@ -185,9 +185,8 @@ class NetDogIf:
         sendsiz = 0
         if( self._socket):
             while sendsiz < len(data):
-                self._vlog(3, f"send: {len(data)}byte to {self._peer_ip}:{self._peer_port}") 
+                self._vlog(3, f"send: {len(data)}byte to {self._peer_ip}:{self._peer_port}")
                 self._vlog(0, f"[Send] --> {data}", prefix="", color=None) 
-                #self._vlog(1, f"[Send] --> {data}") 
 
                 try:
                     if self._udp:
@@ -224,7 +223,6 @@ class NetDogIf:
 
                 self._vlog(3, f"recv: {len(bdat)}byte from {self._peer_ip}:{self._peer_port}")
                 self._vlog(0, f"[Recv] <-- {bdat}", prefix="", color=None) 
-                #self._vlog(1, f"[Recv] <-- {bdat}") 
                 
                 if( isinstance(data, str)):
                     data += bdat.decode(encoding=self._encoding)            
