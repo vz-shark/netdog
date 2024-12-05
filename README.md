@@ -15,27 +15,28 @@ There is a pre-built `netdog.exe` using pyinstaller. [(Download here)](https://g
 
 ```
 $ netdog -h
-usage: netdog [-l] [-u] [-e cmd] [-C] [-b] [-v] [-h] [-V] [hostname] port
+usage: netdog [-l] [-u] [-e cmd] [-C] [--lbnet {LF,CRLF,CR}] [--lbsub {LF,CRLF,CR}] [-v] [-h] [-V] [hostname] port
 
 netdog is a networking tool like netcat.
 
 positional arguments:
-  hostname            Address of bind / connect to.
-  port                Port to listen, forward or connect to
+  hostname              Address of bind / connect to.
+  port                  Port to listen, forward or connect to
 
 mode arguments:
-  -l, --listen        Listen mode: Enable listen mode for inbound connects
-  -u, --udp           UDP mode
+  -l, --listen          Listen mode: Enable listen mode for inbound connects
+  -u, --udp             UDP mode
 
 optional arguments:
-  -e cmd, --exec cmd  Execute command
-  -C, --crlf          Send CRLF as line-endings (default: LF)
-  -b, --binary        Binary mode
-  -v, --verbose       Verbose. Use -vv or -vvv for more verbosity.
+  -e cmd, --exec cmd    Execute command
+  -C, --crlf            same as '--lbnet CRLF'
+  --lbnet {LF,CRLF,CR}  Line break code for network.    (default: LF)
+  --lbsub {LF,CRLF,CR}  Line break code for subprocess. (default: LF)
+  -v, --verbose         Verbose. Use -vv or -vvv for more verbosity.
 
 misc arguments:
-  -h, --help          Show this help message and exit
-  -V, --version       Show version information and exit
+  -h, --help            Show this help message and exit
+  -V, --version         Show version information and exit
 
 [Examples]:
 
@@ -50,5 +51,4 @@ misc arguments:
     print("GET / HTTP/1.1\r\n", end="")
     while(True): print(f"response = {input()}", file=sys.stderr)
     ----------------
-
 ```
