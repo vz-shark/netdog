@@ -3,13 +3,12 @@
 import argparse
 import sys
 
-from netdog import NetDogIf
-from netdog import __version__
+import netdog
 
 
 PGNAME = "netdog"
 
-VERSION = __version__
+VERSION = netdog.__version__
 
 def get_version():
     return f"{PGNAME} {VERSION}"
@@ -29,30 +28,6 @@ EPILOG = r"""
     while(True): print(f"response = {input()}", file=sys.stderr)
     ----------------
 """% ({"prog": PGNAME})
-
-
-def app(host, port, is_listen=True, is_udp=False, is_crlf=False,  bufsize=1024, verbose=0, exec=""):
-    # create netdogif
-    lbstr="\r\n" if is_crlf else "\n"
-    dogif = NetDogIf(is_udp=is_udp, lbstr=lbstr, verbose=verbose)
-
-    # start server/client
-    if(is_listen):
-        dogif.server(host, port)
-    else:
-        dogif.client(host, port)
-    
-    # exec
-    if(exec):
-        dogif.exec(exec)
-    else:
-        #dogif.recv(cb=lambda x: print(x, end="", flush=True))
-        dogif.recv(cb=lambda x: True)
-    
-    # wait keyboad input
-    while True:
-        inp = input()
-        dogif.send(inp)
 
 
 
@@ -82,9 +57,11 @@ def get_args():
 
     #option
     optional.add_argument("-e", "--exec", metavar="cmd", type=str, help="Execute command")
-    optional.add_argument("-C", "--crlf", action="store_true", help="Send CRLF as line-endings (default: LF)")
-    optional.add_argument("-b", "--binary", action="store_true", help="Binary mode")
-    optional.add_argument("-v", "--verbose", action="count", default=0, help="Verbose. Use -vv or -vvv for more verbosity.")
+    optional.add_argument("-C", "--crlf", action="store_true", help="same as '--lbnet CRLF'")
+#   optional.add_argument("-b", "--binary", action="store_true", help="Binary mode") #Not implemented.
+    optional.add_argument("--lbnet", type=str, choices=["LF", "CRLF", "CR"], default="", help="Line break code for network.    (default: LF)")
+    optional.add_argument("--lbsub", type=str, choices=["LF", "CRLF", "CR"], default="", help="Line break code for subprocess. (default: LF)")
+    optional.add_argument("-v", "--verbose", action="count", default=0, help="Verbose. Use -vv or -vvv for more verbosity.")   
     
     #misc
     misc.add_argument("-h", "--help", action="help", help="Show this help message and exit")
@@ -99,6 +76,26 @@ def get_args():
         print("%s: error: the following arguments are required: hostname" % (PGNAME), file=sys.stderr)
         sys.exit(1)
 
+    #line break
+    lbchg = {
+        "":         "\n",
+        "LF":       "\n",
+        "CRLF":     "\r\n",
+        "CR":       "\r",
+    }
+
+    #lb_net
+    if(args.crlf and args.lbnet):
+        parser.print_usage()
+        print("%s: error: -C and --lbnet and --crlf  are exclusive." % (PGNAME), file=sys.stderr)
+        sys.exit(1)
+    if(args.crlf):
+        args.lbnet = "CRLF"
+    args.lbnet = lbchg[args.lbnet]
+
+    #lb_sub
+    args.lbsub = lbchg[args.lbsub]
+
     #hostname
     if( args.hostname is None):
         args.hostname = "0.0.0.0"
@@ -108,7 +105,17 @@ def get_args():
 
 def main():
     args = get_args()
-    app(args.hostname, args.port, is_listen=args.listen, is_udp=args.udp, is_crlf=args.crlf, verbose=args.verbose, exec=args.exec)
+    app = netdog.App(
+            args.port,
+            args.hostname, 
+            is_server = args.listen,
+            is_udp = args.udp, 
+            lbnet = args.lbnet, 
+            lbsub = args.lbsub, 
+            verbose = args.verbose, 
+            exec = args.exec
+        )
+    app.start()
 
 if __name__ == "__main__":
     main()
