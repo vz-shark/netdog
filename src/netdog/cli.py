@@ -105,6 +105,11 @@ def get_args():
     if( args.hostname is None):
         args.hostname = "0.0.0.0"
 
+    #print args
+    if(args.verbose >= 3):
+        print(args)
+
+
     return args
 
 

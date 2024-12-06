@@ -38,6 +38,12 @@ vlog = VLogger()
 
 
 
+def get_aline(data:str, lb:str="\n"):
+    pos = data.find(lb)
+    if(pos < 0):
+        return("")
+    return(data[0: pos+len(lb)])
+
 class LineBuf:
     def __init__(self, lb: Literal["\n", "\r\n", "\r"] ="\n"):
         self._lb = lb
@@ -46,20 +52,17 @@ class LineBuf:
     def write(self, data:str):
         self._buf += data
     
-    def line_count(self):
-        lns = self._buf.split(self._lb)
-        return(len(lns))
 
-    def readline(self, data: str = "") -> str:
+    def readline(self, data: str = "") -> str | None:
         if(data is None):
             return(None)
         if(len(data)):
             self.write(data)
-        lns = self._buf.split(self._lb)
-        if(len(lns) != 0):
-            self._buf = self._buf[ len(lns[0] + self._lb) :]
-            return(lns[0].replace("\r", "").replace("\n", ""))
-        return("")
+        aline = get_aline(self._buf, lb=self._lb)
+        if(len(aline) != 0):
+            self._buf = self._buf[ len(aline) :]
+            return(aline.rstrip("\r\n"))
+        return(None)
 
 
 
@@ -293,9 +296,9 @@ class App:
 
         self._netif = NetIf()
         self._pipeif = PipeIf() 
-        self._lbbuf_recv = LineBuf()
-        self._lbbuf_read_stdout = LineBuf()
-        self._lbbuf_read_stderr = LineBuf()
+        self._lbbuf_recv = LineBuf(lb=self._lbnet)
+        self._lbbuf_read_stdout = LineBuf(lb=self._lbsub)
+        self._lbbuf_read_stderr = LineBuf(lb=self._lbsub)
         self._threads = {}
 
         if(not self.addr):
@@ -326,7 +329,8 @@ class App:
         def _inner_cb_recv(data:bytearray):
             data = data.decode(encoding=self._encnet)
             data = self._lbbuf_recv.readline(data)
-            self.write_withlb(data)
+            if(data is not None):
+                self.write_withlb(data)
             return        
  
         self._netif.recv_cb(_inner_cb_recv)
@@ -335,13 +339,15 @@ class App:
         def _inner_cb_read_stdout(data:bytearray):
             data = data.decode(encoding=self._encsub)
             data = self._lbbuf_read_stdout.readline(data)
-            self.send_withlb(data)
+            if(data is not None):
+                self.send_withlb(data)
             return
 
         def _inner_cb_read_stderr(data:bytearray):
             data = data.decode(encoding=self._encsub)
             data = self._lbbuf_read_stderr.readline(data)
-            self.print_from_sub(data)
+            if(data is not None):
+                self.print_from_sub(data)
             return
 
         self._pipeif.open(self._exec)
