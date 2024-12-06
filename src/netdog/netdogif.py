@@ -39,21 +39,18 @@ vlog = VLogger()
 
 
 class LineBuf:
-    def __init__(self, lb: Literal["\n", "\r\n", "\r"]   ="\n", encoding="utf-8"):
+    def __init__(self, lb: Literal["\n", "\r\n", "\r"] ="\n"):
         self._lb = lb
-        self._encoding = encoding
         self._buf = ""
     
-    def write(self, data:str | bytearray | bytes):
-        if(not isinstance(data, str)):
-            data = data.decode(encoding=self._encoding)
+    def write(self, data:str):
         self._buf += data
     
     def line_count(self):
         lns = self._buf.split(self._lb)
         return(len(lns))
 
-    def readline(self, data: str | bytearray | bytes | None = "") -> str:
+    def readline(self, data: str = "") -> str:
         if(data is None):
             return(None)
         if(len(data)):
@@ -69,7 +66,6 @@ class LineBuf:
 class NetIf:
     def __init__(self, is_udp:bool = False):
         self._udp: bool = is_udp
-
         self._socket:  socket.socket | None = None
         self._listener: socket.socket | None = None
         self._peer_ip:str = ""
@@ -275,7 +271,8 @@ class App:
                  exec:str = "", 
                  lbnet:str = "\n", 
                  lbsub:str = "\n",
-                 encoding="utf-8", 
+                 encnet:str="utf-8", 
+                 encsub:str="utf-8", 
                  verbose:int=0):
         
         #set logger verbose level
@@ -290,7 +287,8 @@ class App:
         self._exec = exec
         self._lbnet:str = lbnet
         self._lbsub:str = lbsub
-        self._encoding:str = encoding
+        self._encnet:str = encnet
+        self._encsub:str = encsub
         self._verbose: int = verbose
 
         self._netif = NetIf()
@@ -326,7 +324,7 @@ class App:
 
     def _setup_recv(self):
         def _inner_cb_recv(data:bytearray):
-            data = data.decode(encoding=self._encoding)
+            data = data.decode(encoding=self._encnet)
             data = self._lbbuf_recv.readline(data)
             self.write_withlb(data)
             return        
@@ -335,13 +333,13 @@ class App:
 
     def _setup_exec(self):
         def _inner_cb_read_stdout(data:bytearray):
-            data = data.decode(encoding=self._encoding)
+            data = data.decode(encoding=self._encsub)
             data = self._lbbuf_read_stdout.readline(data)
             self.send_withlb(data)
             return
 
         def _inner_cb_read_stderr(data:bytearray):
-            data = data.decode(encoding=self._encoding)
+            data = data.decode(encoding=self._encsub)
             data = self._lbbuf_read_stderr.readline(data)
             self.print_from_sub(data)
             return
@@ -352,12 +350,12 @@ class App:
 
     def send_withlb(self, data:str):
         data += self._lbnet
-        self._netif.send(data.encode(encoding=self._encoding))
+        self._netif.send(data.encode(encoding=self._encnet))
         
     def write_withlb(self, data:str):
         data = data.rstrip("\r\n")
         data += self._lbsub
-        self._pipeif.write_stdin(data.encode(encoding=self._encoding))
+        self._pipeif.write_stdin(data.encode(encoding=self._encsub))
 
     def print_from_sub(self, data:str): 
         ls = data.split(self._lbsub)

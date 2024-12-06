@@ -17,16 +17,19 @@ EPILOG = r"""
 [Examples]:
 
 * Delegate application layer behavior to other programs via stdin/stdout of subprocess.
-  In other words, make stdin/stdout via PIPE correspond to recv/send.
-  
+  In other words, using PIPE to make correspond recv() to stdin, and correspond stdout to send().   
+
   The following is an example of a simple HTTP GET method.  
     
     > %(prog)s -v -e 'python -u httpget.py' 127.0.0.1 80        
     
     ---httpget.py---
     print("GET / HTTP/1.1\r\n", end="")
-    while(True): print(f"response = {input()}", file=sys.stderr)
+    while(True): 
+      res = input()
+      print(f"response = {res}", file=sys.stderr)
     ----------------
+    
 """% ({"prog": PGNAME})
 
 
@@ -62,6 +65,8 @@ def get_args():
     optional.add_argument("--lbnet", type=str, choices=["LF", "CRLF", "CR"], default="", help="Line break code for network.    (default: LF)")
     optional.add_argument("--lbsub", type=str, choices=["LF", "CRLF", "CR"], default="", help="Line break code for subprocess. (default: LF)")
     optional.add_argument("-v", "--verbose", action="count", default=0, help="Verbose. Use -vv or -vvv for more verbosity.")   
+    optional.add_argument("--encnet", type=str, default="utf-8", help="Encoding for network.    (default: 'utf-8')")
+    optional.add_argument("--encsub", type=str, default="utf-8", help="Encoding for subprocess. (default: 'utf-8')")
     
     #misc
     misc.add_argument("-h", "--help", action="help", help="Show this help message and exit")
@@ -112,6 +117,8 @@ def main():
             is_udp = args.udp, 
             lbnet = args.lbnet, 
             lbsub = args.lbsub, 
+            encnet = args.encnet,
+            encsub = args.encsub,
             verbose = args.verbose, 
             exec = args.exec
         )
