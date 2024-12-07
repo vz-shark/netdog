@@ -33,8 +33,53 @@ class VLogger(Singleton):
             lvstr = f"[{verbose_level}]"
         cprint( f"{lvstr}{prefix}{s}", color, file=fd, **kwargs)
 
+class ThreadManager(Singleton):
+    def __init__(self):
+        self._threads = {}
+        self._setup_observer()
+    
+    def __setitem__(self, key, value):
+        self._threads[key] = value
+    
+    def __getitem__(self, key):
+        return(self._threads[key])
+
+    def __str__(self):
+        ret = { k: v.is_alive() for k,v in self._threads.items() }
+        return(str(ret))
+
+    def _setup_observer(self):
+        def _proc_observer():
+            oldsts = {}
+            while(True):
+                newsts = { k: v.is_alive() for k,v in self._threads.items() }
+                if(str(newsts) != str(oldsts)):
+                    vlog(3, f"new={newsts}, old={oldsts}" ,prefix="<ThreadManagerObserver>")
+                    oldsts = newsts
+                time.sleep(0.1)
+        
+        th = threading.Thread(target=_proc_observer, daemon=True)
+        #self.__setitem__("_observer", th)
+        th.start()
+    
+    def is_all_alive(self):
+        stss =  [ v.is_alive() for v in self._threads.values() ]
+        return( all(stss) )
+    
+    def is_any_dead(self):
+        return(not self.is_all_alive())
+
+    def clear(self):
+        for k,v in self._threads.items():
+            if(v.is_alive()):
+                vlog(3, f"clear(): leek: {k} : {v}" ,prefix="<ThreadManagerObserver>")
+        self._threads = {}
+
+
 
 vlog = VLogger()
+thdmng = ThreadManager()
+
 
 
 
@@ -49,21 +94,26 @@ class LineBuf:
         self._lb = lb
         self._buf = ""
     
-    def write(self, data:str):
-        self._buf += data
-    
-
-    def readline(self, data: str = "") -> str | None:
+    def write(self, data:str | None) -> int:
+        assert isinstance(data, (str, None)), f"data is unexpected type: {type(data)}"
         if(data is None):
-            return(None)
-        if(len(data)):
-            self.write(data)
+            return(-1)
+        self._buf += data
+        return(len(data))
+     
+    def readline(self, keepends=False) -> str | None:
         aline = get_aline(self._buf, lb=self._lb)
-        if(len(aline) != 0):
+        if(aline):
             self._buf = self._buf[ len(aline) :]
-            return(aline.rstrip("\r\n"))
+            if(keepends is False):
+                aline = aline.rstrip("\r\n")
+            return(aline)
         return(None)
 
+    def readline_with_write(self, data:str|None, keepends=False) -> tuple[int, str | None]:
+        retint = self.write(data)
+        retstr = self.readline(keepends=keepends)
+        return(retint, retstr)
 
 
 class NetIf:
@@ -73,7 +123,6 @@ class NetIf:
         self._listener: socket.socket | None = None
         self._peer_ip:str = ""
         self._peer_port:int = 0
-        self._threads = {}
 
 
     def _sock_error(self, msg="", error=None):
@@ -179,10 +228,9 @@ class NetIf:
                 cb(data)
             return
 
-        self._threads["reciver"] = threading.Thread(target=_inner_reciver)
-        self._threads["reciver"].daemon = True
-        self._threads["reciver"].start()
-        return(self._threads["reciver"])
+        thdmng["reciver"] = threading.Thread(target=_inner_reciver, daemon=True)
+        thdmng["reciver"].start()
+        return(thdmng["reciver"])
 
     def shutdown(self):
         if(self._socket):
@@ -194,7 +242,6 @@ class NetIf:
 
 class PipeIf:
     def __init__(self):
-        self._threads = {}
         self._execstr = None
         self._pipe = None    
     
@@ -255,10 +302,9 @@ class PipeIf:
                 
                 time.sleep(0.01)
 
-        self._threads["reader"] = threading.Thread(target=_inner_reader, name="pipe_reader")
-        self._threads["reader"].daemon = True
-        self._threads["reader"].start()
-        return(self._threads["reader"])
+        thdmng["reader"] = threading.Thread(target=_inner_reader, name="pipe_reader", daemon=True)
+        thdmng["reader"].start()
+        return(thdmng["reader"])
 
 
 
@@ -299,7 +345,6 @@ class App:
         self._lbbuf_recv = LineBuf(lb=self._lbnet)
         self._lbbuf_read_stdout = LineBuf(lb=self._lbsub)
         self._lbbuf_read_stderr = LineBuf(lb=self._lbsub)
-        self._threads = {}
 
         if(not self.addr):
             if(self._is_server):  self.addr = "0.0.0.0"
@@ -307,47 +352,80 @@ class App:
                 
 
     def start(self):
-        # wait peer 
-        if(self._is_server):
-            self._netif.server(self.addr, self.port)
-        else:
-            self._netif.client(self.addr, self.port)
+        def _proc_start():
+            # wait peer 
+            if(self._is_server):
+                self._netif.server(self.addr, self.port)
+            else:
+                self._netif.client(self.addr, self.port)
 
-        #setup recv
-        self._setup_recv()
+            #setup recv
+            self._setup_recv()
 
-        #setup exec
-        if(self._exec):
-            self._setup_exec()
+            #setup exec
+            if(self._exec):
+                self._setup_exec()
+            
+            #setup keyin
+            self._setup_keyin()
+
+            #main thread loop
+            while(True):
+                time.sleep(0.1)
+                if( thdmng.is_any_dead() ):
+                    break
         
-        #keyboad input
-        while(True):
-            inp = input()
-            self.send_withlb(inp)
+        _proc_start()
+        
+        # for i in range(2):
+        #     print(f"###START### {i}")
+        #     thdmng.clear()
+        #     th = threading.Thread(target=_proc_start, daemon=True)
+        #     th.start()
+        #     print(f"### start")    
+        #     th.join()
+        #     print(f"### join")
+        #     print("**1**", thdmng)
+        #     time.sleep(5)
+        #     print("**2**", thdmng)
+
+
+    
+    def _setup_keyin(self):
+        def _proc_keyin():
+            while(True):
+                inp = input()
+                self.send_withlb(inp)
+        
+        thdmng["keyin"] = threading.Thread(target=_proc_keyin, daemon=True)
+        thdmng["keyin"].start()
+        return(thdmng["keyin"])
+
 
     def _setup_recv(self):
         def _inner_cb_recv(data:bytearray):
             data = data.decode(encoding=self._encnet)
-            data = self._lbbuf_recv.readline(data)
-            if(data is not None):
-                self.write_withlb(data)
+            alen, aline = self._lbbuf_recv.readline_with_write(data)
+            if(aline is not None ):
+                self.write_withlb(aline)
             return        
  
         self._netif.recv_cb(_inner_cb_recv)
 
+
     def _setup_exec(self):
         def _inner_cb_read_stdout(data:bytearray):
             data = data.decode(encoding=self._encsub)
-            data = self._lbbuf_read_stdout.readline(data)
-            if(data is not None):
-                self.send_withlb(data)
+            alen, aline = self._lbbuf_read_stdout.readline_with_write(data)
+            if(aline is not None ):
+                self.send_withlb(aline)
             return
 
         def _inner_cb_read_stderr(data:bytearray):
             data = data.decode(encoding=self._encsub)
-            data = self._lbbuf_read_stderr.readline(data)
-            if(data is not None):
-                self.print_from_sub(data)
+            alen, aline = self._lbbuf_read_stderr.readline_with_write(data)
+            if(aline is not None):
+                self.print_from_sub(aline)
             return
 
         self._pipeif.open(self._exec)
@@ -358,10 +436,12 @@ class App:
         data += self._lbnet
         self._netif.send(data.encode(encoding=self._encnet))
         
+
     def write_withlb(self, data:str):
         data = data.rstrip("\r\n")
         data += self._lbsub
         self._pipeif.write_stdin(data.encode(encoding=self._encsub))
+
 
     def print_from_sub(self, data:str): 
         ls = data.split(self._lbsub)
