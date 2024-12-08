@@ -101,7 +101,7 @@ class LineBuf:
         self._buf += data
         return(len(data))
      
-    def readline(self, keepends=False) -> str | None:
+    def read_aline(self, keepends=False) -> str | None:
         aline = get_aline(self._buf, lb=self._lb)
         if(aline):
             self._buf = self._buf[ len(aline) :]
@@ -110,10 +110,14 @@ class LineBuf:
             return(aline)
         return(None)
 
-    def readline_with_write(self, data:str|None, keepends=False) -> tuple[int, str | None]:
-        retint = self.write(data)
-        retstr = self.readline(keepends=keepends)
-        return(retint, retstr)
+    def read_lines(self, keepends=False) -> list[str]:
+        ret = []
+        while(True):
+            aline = self.read_aline(keepends=keepends)
+            if(aline is None):
+                break
+            ret.append(aline)
+        return(ret)
 
 
 class NetIf:
@@ -416,27 +420,32 @@ class App:
     def _setup_recv(self):
         def _inner_cb_recv(data:bytearray) -> int:
             data = data.decode(encoding=self._encnet)
-            alen, aline = self._lbbuf_recv.readline_with_write(data)
-            if(aline is not None ):
+            self._lbbuf_recv.write(data)
+            lines = self._lbbuf_recv.read_lines()
+            for aline in lines:
                 wlen = self.write_withlb(aline)
-                return(wlen)
+                if(wlen < 0):
+                    return(wlen)
             return(0)        
- 
-        self._netif.recv_cb(_inner_cb_recv)
+
+        if(self._exec):
+            self._netif.recv_cb(_inner_cb_recv)
 
 
     def _setup_exec(self):
         def _inner_cb_read_stdout(data:bytearray):
             data = data.decode(encoding=self._encsub)
-            alen, aline = self._lbbuf_read_stdout.readline_with_write(data)
-            if(aline is not None ):
+            self._lbbuf_read_stdout.write(data)
+            lines = self._lbbuf_read_stdout.read_lines()
+            for aline in lines:
                 self.send_withlb(aline)
             return
 
         def _inner_cb_read_stderr(data:bytearray):
             data = data.decode(encoding=self._encsub)
-            alen, aline = self._lbbuf_read_stderr.readline_with_write(data)
-            if(aline is not None):
+            self._lbbuf_read_stderr.write(data)
+            lines = self._lbbuf_read_stderr.read_lines()
+            for aline in lines:
                 self.print_from_sub(aline)
             return
 
