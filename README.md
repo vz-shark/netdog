@@ -26,7 +26,7 @@ There is a pre-built `netdog.exe` using pyinstaller. [(Download here)](https://g
 ## Usage
 
 ```
-$  pdm run netdog -h
+$ netdog -h
 usage: netdog [-l] [-u] [-C] [-h] [-V] [-v] [-e cmd] [--lbcnet {LF,CRLF,CR}] [--lbcsub {LF,CRLF,CR,auto}]
               [--encnet ENCNET] [--encsub ENCSUB]
               [hostname] port
