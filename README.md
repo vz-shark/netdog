@@ -1,7 +1,19 @@
 # netdog
 It is like netcat implemented in python.
 
+## Description  
+
+
 ## Install 
+
+### Requirement
+
+#### Dependency 
+- termcolor>=2.5.0  
+
+#### On Windows
+- python >= 3.12  
+Because netdog using os.set_blocking(). that function was supported on Windows since python 3.12.
 
 ### PYPI
 ```
@@ -14,34 +26,36 @@ There is a pre-built `netdog.exe` using pyinstaller. [(Download here)](https://g
 ## Usage
 
 ```
-$ netdog -h
-usage: netdog [-l] [-u] [-e cmd] [-C] [--lbnet {LF,CRLF,CR}] [--lbsub {LF,CRLF,CR}] [-v] [-h] [-V] [hostname] port
+$  pdm run netdog -h
+usage: netdog [-l] [-u] [-C] [-h] [-V] [-v] [-e cmd] [--lbcnet {LF,CRLF,CR}] [--lbcsub {LF,CRLF,CR,auto}]
+              [--encnet ENCNET] [--encsub ENCSUB]
+              [hostname] port
 
 netdog is a networking tool like netcat.
 
-positional arguments:
+netcat compatible argument:
   hostname              Address of bind / connect to.
   port                  Port to listen, forward or connect to
-
-mode arguments:
   -l, --listen          Listen mode: Enable listen mode for inbound connects
   -u, --udp             UDP mode
-
-optional arguments:
-  -e cmd, --exec cmd    Execute command
-  -C, --crlf            same as '--lbnet CRLF'
-  --lbnet {LF,CRLF,CR}  Line break code for network.    (default: LF)
-  --lbsub {LF,CRLF,CR}  Line break code for subprocess. (default: LF)
-  -v, --verbose         Verbose. Use -vv or -vvv for more verbosity.
-
-misc arguments:
+  -C, --crlf            same as '--lbcnet CRLF'
   -h, --help            Show this help message and exit
   -V, --version         Show version information and exit
+
+netdog extended argument.:
+  -v, --verbose         Verbose. Use -vv or -vvv for more verbosity.
+  -e cmd, --exec cmd    Execute command
+  --lbcnet {LF,CRLF,CR}
+                        Line break code for network.    (default: LF)
+  --lbcsub {LF,CRLF,CR,auto}
+                        Line break code for subprocess. (default: auto)
+  --encnet ENCNET       Encoding for network.    (default: 'utf-8')
+  --encsub ENCSUB       Encoding for subprocess. (default: 'utf-8')
 
 [Examples]:
 
 * Delegate application layer behavior to other programs via stdin/stdout of subprocess.
-  In other words, make stdin/stdout via PIPE correspond to recv/send.
+  In other words, using PIPE to make correspond recv() to stdin, and correspond stdout to send().
 
   The following is an example of a simple HTTP GET method.
 
@@ -49,6 +63,9 @@ misc arguments:
 
     ---httpget.py---
     print("GET / HTTP/1.1\r\n", end="")
-    while(True): print(f"response = {input()}", file=sys.stderr)
+    while(True):
+      res = input()
+      print(f"response = {res}", file=sys.stderr)
     ----------------
+
 ```

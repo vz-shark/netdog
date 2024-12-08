@@ -45,32 +45,27 @@ def get_args():
     )
 
     #arugument groups
-    positional = parser.add_argument_group("positional arguments")
-    mode = parser.add_argument_group("mode arguments")
-    optional = parser.add_argument_group("optional arguments")
-    misc = parser.add_argument_group("misc arguments")
+    compatible = parser.add_argument_group("netcat compatible argument")
+    extend = parser.add_argument_group("netdog extended argument.")
 
-    #positional
-    positional.add_argument("hostname", nargs="?", type=str, help="Address of bind / connect to.")
-    positional.add_argument("port", type=int, help="Port to listen, forward or connect to")
+    #compatible
+    compatible.add_argument("hostname", nargs="?", type=str, help="Address of bind / connect to.")
+    compatible.add_argument("port", type=int, help="Port to listen, forward or connect to")
+    compatible.add_argument("-l", "--listen", action="store_true", help="Listen mode: Enable listen mode for inbound connects")
+    compatible.add_argument("-u", "--udp", action="store_true", help="UDP mode")
+    compatible.add_argument("-C", "--crlf", action="store_true", help="same as '--lbcnet CRLF'")
+    compatible.add_argument("-h", "--help", action="help", help="Show this help message and exit")
+    compatible.add_argument("-V", "--version", action="version", version=get_version(), help="Show version information and exit" )
 
-    #mode
-    mode.add_argument("-l", "--listen", action="store_true", help="Listen mode: Enable listen mode for inbound connects")
-    mode.add_argument("-u", "--udp", action="store_true", help="UDP mode")
-
-    #option
-    optional.add_argument("-e", "--exec", metavar="cmd", type=str, help="Execute command")
-    optional.add_argument("-C", "--crlf", action="store_true", help="same as '--lbnet CRLF'")
-#   optional.add_argument("-b", "--binary", action="store_true", help="Binary mode") #Not implemented.
-    optional.add_argument("--lbnet", type=str, choices=["LF", "CRLF", "CR"], default="", help="Line break code for network.    (default: LF)")
-    optional.add_argument("--lbsub", type=str, choices=["LF", "CRLF", "CR"], default="", help="Line break code for subprocess. (default: LF)")
-    optional.add_argument("-v", "--verbose", action="count", default=0, help="Verbose. Use -vv or -vvv for more verbosity.")   
-    optional.add_argument("--encnet", type=str, default="utf-8", help="Encoding for network.    (default: 'utf-8')")
-    optional.add_argument("--encsub", type=str, default="utf-8", help="Encoding for subprocess. (default: 'utf-8')")
+    #extend
+    extend.add_argument("-v", "--verbose", action="count", default=0, help="Verbose. Use -vv or -vvv for more verbosity.")   
+    extend.add_argument("-e", "--exec", metavar="cmd", type=str, help="Execute command")
+    extend.add_argument("--lbcnet", type=str, choices=["LF", "CRLF", "CR"], default="", help="Line break code for network.    (default: LF)")
+    extend.add_argument("--lbcsub", type=str, choices=["LF", "CRLF", "CR", "auto"], default="auto", help="Line break code for subprocess. (default: auto)")
+    extend.add_argument("--encnet", type=str, default="utf-8", help="Encoding for network.    (default: 'utf-8')")
+    extend.add_argument("--encsub", type=str, default="utf-8", help="Encoding for subprocess. (default: 'utf-8')")
+#   extend.add_argument("-b", "--binary", action="store_true", help="Binary mode") #Not implemented.
     
-    #misc
-    misc.add_argument("-h", "--help", action="help", help="Show this help message and exit")
-    misc.add_argument("-V", "--version", action="version", version=get_version(), help="Show version information and exit" )
     
     #parse
     args = parser.parse_args()
@@ -87,19 +82,20 @@ def get_args():
         "LF":       "\n",
         "CRLF":     "\r\n",
         "CR":       "\r",
+        "auto":     "auto",
     }
 
-    #lb_net
-    if(args.crlf and args.lbnet):
+    #lbcnet
+    if(args.crlf and args.lbcnet):
         parser.print_usage()
-        print("%s: error: -C and --lbnet and --crlf  are exclusive." % (PGNAME), file=sys.stderr)
+        print("%s: error: -C and --lbcnet and --crlf  are exclusive." % (PGNAME), file=sys.stderr)
         sys.exit(1)
     if(args.crlf):
-        args.lbnet = "CRLF"
-    args.lbnet = lbchg[args.lbnet]
+        args.lbcnet = "CRLF"
+    args.lbcnet = lbchg[args.lbcnet]
 
-    #lb_sub
-    args.lbsub = lbchg[args.lbsub]
+    #lbcsub
+    args.lbcsub = lbchg[args.lbcsub]
 
     #hostname
     if( args.hostname is None):
@@ -120,8 +116,8 @@ def main():
             args.hostname, 
             is_server = args.listen,
             is_udp = args.udp, 
-            lbnet = args.lbnet, 
-            lbsub = args.lbsub, 
+            lbcnet = args.lbcnet, 
+            lbcsub = args.lbcsub, 
             encnet = args.encnet,
             encsub = args.encsub,
             verbose = args.verbose, 

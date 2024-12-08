@@ -318,8 +318,8 @@ class App:
                  is_server:bool = False, 
                  is_udp:bool = False, 
                  exec:str = "", 
-                 lbnet:str = "\n", 
-                 lbsub:str = "\n",
+                 lbcnet:str = "\n", 
+                 lbcsub:str = "auto",
                  encnet:str="utf-8", 
                  encsub:str="utf-8", 
                  verbose:int=0):
@@ -327,24 +327,29 @@ class App:
         #set logger verbose level
         vlog.set_verbose(verbose=verbose)
 
+        #resoleve lbcsub auto
+        if(lbcsub == "auto"):
+            lbcsub = "\n"
+            if( os.name == 'nt'):
+                lbcsub = "\r\n"
+            vlog(3, f"option '--lbcsub auto' was resolved as {lbcsub.encode()}")
+
         self.port = port
         self.addr = addr
-
         self._is_server: bool = is_server
         self._is_udp: bool = is_udp,
-
         self._exec = exec
-        self._lbnet:str = lbnet
-        self._lbsub:str = lbsub
+        self._lbcnet:str = lbcnet
+        self._lbcsub:str = lbcsub
         self._encnet:str = encnet
         self._encsub:str = encsub
         self._verbose: int = verbose
 
         self._netif = NetIf()
         self._pipeif = PipeIf() 
-        self._lbbuf_recv = LineBuf(lb=self._lbnet)
-        self._lbbuf_read_stdout = LineBuf(lb=self._lbsub)
-        self._lbbuf_read_stderr = LineBuf(lb=self._lbsub)
+        self._lbbuf_recv = LineBuf(lb=self._lbcnet)
+        self._lbbuf_read_stdout = LineBuf(lb=self._lbcsub)
+        self._lbbuf_read_stderr = LineBuf(lb=self._lbcsub)
 
         if(not self.addr):
             if(self._is_server):  self.addr = "0.0.0.0"
@@ -433,18 +438,18 @@ class App:
 
 
     def send_withlb(self, data:str):
-        data += self._lbnet
+        data += self._lbcnet
         self._netif.send(data.encode(encoding=self._encnet))
         
 
     def write_withlb(self, data:str):
         data = data.rstrip("\r\n")
-        data += self._lbsub
+        data += self._lbcsub
         self._pipeif.write_stdin(data.encode(encoding=self._encsub))
 
 
     def print_from_sub(self, data:str): 
-        ls = data.split(self._lbsub)
+        ls = data.split(self._lbcsub)
         for one in ls:
             one = one.rstrip("\r\n")
             vlog(1, one, prefix="<SubPro>")   
