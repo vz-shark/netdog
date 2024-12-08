@@ -225,7 +225,9 @@ class NetIf:
                 data = self.recv()
                 if(data is None):
                     break
-                cb(data)
+                ret = cb(data)
+                if(ret < 0):
+                    break
             return
 
         thdmng["reciver"] = threading.Thread(target=_inner_reciver, daemon=True)
@@ -252,15 +254,18 @@ class PipeIf:
         os.set_blocking(self._pipe.stdout.fileno(), False)
         os.set_blocking(self._pipe.stderr.fileno(), False)
 
-    def write_stdin(self, data):
+    def write_stdin(self, data) -> int:
         if(self._pipe is None):
-            return
+            vlog(2, f"broken pipe.")
+            return(-1)
         vlog(2, f"[Pipe] --> {data}")
         self._pipe.stdin.write(data)
         self._pipe.stdin.flush()
+        return(len(data))
 
     def read_stdout(self) -> str | None:
         if(self._pipe is None):
+            vlog(2, f"broken pipe.")
             return (None)
         data = self._pipe.stdout.read()
         if(data is None or len(data) == 0):
@@ -272,6 +277,7 @@ class PipeIf:
 
     def read_stderr(self) -> str | None:
         if(self._pipe is None):
+            vlog(2, f"broken pipe.")
             return (None)
         data = self._pipe.stderr.read()
         if(data is None or len(data) == 0):
@@ -364,15 +370,15 @@ class App:
             else:
                 self._netif.client(self.addr, self.port)
 
-            #setup recv
-            self._setup_recv()
-
             #setup exec
             if(self._exec):
                 self._setup_exec()
             
             #setup keyin
             self._setup_keyin()
+
+            #setup recv
+            self._setup_recv()
 
             #main thread loop
             while(True):
@@ -408,12 +414,13 @@ class App:
 
 
     def _setup_recv(self):
-        def _inner_cb_recv(data:bytearray):
+        def _inner_cb_recv(data:bytearray) -> int:
             data = data.decode(encoding=self._encnet)
             alen, aline = self._lbbuf_recv.readline_with_write(data)
             if(aline is not None ):
-                self.write_withlb(aline)
-            return        
+                wlen = self.write_withlb(aline)
+                return(wlen)
+            return(0)        
  
         self._netif.recv_cb(_inner_cb_recv)
 
@@ -442,10 +449,11 @@ class App:
         self._netif.send(data.encode(encoding=self._encnet))
         
 
-    def write_withlb(self, data:str):
+    def write_withlb(self, data:str) -> int:
         data = data.rstrip("\r\n")
         data += self._lbcsub
-        self._pipeif.write_stdin(data.encode(encoding=self._encsub))
+        wlen = self._pipeif.write_stdin(data.encode(encoding=self._encsub))
+        return(wlen)
 
 
     def print_from_sub(self, data:str): 
